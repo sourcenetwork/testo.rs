@@ -1,0 +1,12 @@
+[package]
+name = "testo"
+description = "todo"
+version = "0.0.1"
+edition = "2024"
+
+[features]
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"], optional = true }
+testo_derive = { path = "../derive" }
