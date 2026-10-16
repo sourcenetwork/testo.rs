@@ -1,4 +1,4 @@
-use crate::action::{ActionInstance};
+use crate::{action::ActionInstance};
 
 // todo - is generic a problem here?
 pub trait Multiplier<TState> : ActionAwareSkipper<TState> + Sync + Send {
@@ -20,34 +20,26 @@ pub fn skip<TState>(
     includes: &[&str],
     excludes: &[&str],
 ) -> SkipReason {
-    for active_multiplier in active_multipliers {
-        for exclude in excludes {
-            if active_multiplier.name() == *exclude {
-                return SkipReason::Skip(format!("multiplier is excluded. Multiplier: {exclude}"));
-            }
-        }
+    // todo - add tests to make sure this is not changed and an iterator is not reused (without reset) for multiple checks
+    // (is what the wrapping closure is for, could be done with clones, but that feels easier to mess up)
+    let active_names = || active_multipliers.iter().map(|m| m.name());
+
+    let excluded = active_names().find(|multiplier| excludes.contains(multiplier));
+    if let Some(excluded) = excluded {
+        return SkipReason::Skip(format!("multiplier is excluded. Multiplier: {excluded}"));
     }
 
-    for include in includes {
-		let mut included = false;
-		for multiplier in active_multipliers {
-			if multiplier.name() == *include {
-				included = true;
-				break
-			}
-		}
+    let missing_include = includes.iter()
+        .find(|&&include| !active_names().any(|multiplier| multiplier == include));
+    if let Some(missing_include) = missing_include {
+        return SkipReason::Skip(format!("required multiplier is not included. Multiplier: {missing_include}"));
+    }
 
-		if !included {
-			return SkipReason::Skip(format!("required multiplier is not included. Multiplier: {include}"));
-		}
-	}
-
-    for multiplier in active_multipliers {
-		if multiplier.should_skip(actions) {
-            let name = multiplier.name();
-            return SkipReason::Skip(format!("multiplier based on actions. Multiplier: {name}"));
-        }
-	}
+    let action_skipped_multiplier = active_multipliers.iter()
+        .find(|multiplier| multiplier.should_skip(actions));
+    if let Some(action_skipped_multiplier) = action_skipped_multiplier {
+        return SkipReason::Skip(format!("multiplier based on actions. Multiplier: {}", action_skipped_multiplier.name()));
+    }
 
     SkipReason::NoSkip
 }
