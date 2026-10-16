@@ -63,8 +63,8 @@ fn multiplier() {
 
     let actions = CounterMultiplier{}.apply(actions);
     
-    let mut state = Arc::new(state);
-    execute(&mut state, actions.as_slice());
+    //let mut state = Arc::new(state);
+    let state = execute(state, actions.as_slice());
 
     assert_eq!(state.sum.load(Ordering::Relaxed), 15);
     assert_eq!(state.counter, 3);

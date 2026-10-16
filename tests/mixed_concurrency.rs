@@ -52,8 +52,7 @@ fn mixed_concurrency() {
         CounterAction{}.into(),
     ];
     
-    let mut state = Arc::new(state);
-    execute(&mut state, actions);
+    let state = execute(state, actions);
 
     assert_eq!(state.sum.load(Ordering::Relaxed), 15);
     assert_eq!(state.counter, 4);

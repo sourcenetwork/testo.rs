@@ -62,17 +62,14 @@ fn multithread() {
     ];
     
     let state = Arc::new(state);
-    let handles: Vec<_> = actions.iter().map(|action| {
-        let mut state = Arc::clone(&state);
-        let action = Arc::clone(&action);
-        thread::spawn(move || 
-            action.execute(&mut state)
-        )
-    })
-    .collect();
-
-    handles.into_iter().for_each(|h| {
-        h.join().unwrap();
+    thread::scope(|scope| {
+        actions.iter().for_each(|action| {
+            let mut state = Arc::clone(&state);
+            scope.spawn(move || {
+                let state = Arc::make_mut(&mut state);
+                action.execute(state)
+            });
+        });
     });
 
     assert_eq!(state.sum.load(Ordering::Relaxed), 14);

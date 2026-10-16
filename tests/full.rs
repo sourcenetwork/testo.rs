@@ -111,7 +111,6 @@ mod tests {
     use testo::action::{self, ActionInstance};
     use testo::multiplier::{self, Multiplier, SkipReason};
     use std::env;
-    use std::sync::Arc;
     use super::state;
 
     static GLOBAL_MULTIPLIERS: [&dyn Multiplier<state::State>; 0] =[
@@ -153,8 +152,8 @@ mod tests {
             let actions = multiplier::apply(&self.actions, &active_multipliers);
 
             let state: state::State = Default::default();
-            let mut state = Arc::new(state);
-            action::execute(&mut state, actions.as_slice());
+            //let mut state = Arc::new(state);
+            action::execute(state, actions.as_slice());
         }
     }
 }
