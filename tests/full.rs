@@ -56,15 +56,13 @@ mod tests {
     }
 
     mod multipliers {
-        use testo::multiplier::{Multiplier, MultiplierMarker};
+        use testo::multiplier::{Multiplier};
         use testo::action::{IntoAsync, ActionInstance};
         use super::state;
         use super::actions;
 
         const MAGNITUDE: i32 = 2;
         pub struct MultiplyMultiplier{}
-
-        impl MultiplierMarker for MultiplyMultiplier{}
 
         impl Multiplier<state::State> for MultiplyMultiplier {
             fn name(&self) -> &str {
@@ -115,12 +113,12 @@ mod tests {
         use testo::action::{self, ActionInstance};
         use testo::multiplier::{self, Multiplier, SkipReason};
         use std::env;
-        use std::sync::{Arc, LazyLock};
+        use std::sync::Arc;
         use super::state;
 
-        static GLOBAL_MULTIPLIERS: LazyLock<[Box<dyn Multiplier<state::State>>; 0]> = LazyLock::new(|| [
+        static GLOBAL_MULTIPLIERS: [&dyn Multiplier<state::State>; 0] =[
 
-        ]);
+        ];
 
         #[derive(Default)]
         pub struct Test<'a> {
@@ -134,7 +132,7 @@ mod tests {
                 self.execute(&[]);
             }
 
-            pub fn execute(&self, crate_specific_multipliers: &[Box<dyn Multiplier<state::State>>]) {
+            pub fn execute(&self, crate_specific_multipliers: &[&dyn Multiplier<state::State>]) {
                 let action_env_key = "EXAMPLE_MULTIPLIER_ENV_NAME";
                 unsafe {
                     // Test code only, don't actually do this :)
@@ -142,7 +140,7 @@ mod tests {
                 }
 
                 let mut possible_multipliers = Vec::new();
-                possible_multipliers.extend(&*GLOBAL_MULTIPLIERS);
+                possible_multipliers.extend(&GLOBAL_MULTIPLIERS);
                 possible_multipliers.extend(crate_specific_multipliers);
 
                 let active_multipliers = multiplier::get_active_multipliers(action_env_key, possible_multipliers.as_slice());
@@ -165,11 +163,10 @@ mod tests {
 
     use testo::action::{IntoAsync};
     use testo::multiplier::{Multiplier};
-    use std::sync::LazyLock;
 
-    static CRATE_LOCAL_MULTIPLIERS: LazyLock<[Box<dyn Multiplier<state::State>>; 1]> = LazyLock::new(|| [
-        multipliers::MultiplyMultiplier{}.into(),
-    ]);
+    static CRATE_LOCAL_MULTIPLIERS: [&dyn Multiplier<state::State>; 1] = [
+        &multipliers::MultiplyMultiplier{},
+    ];
 
     #[test]
     fn full() {
@@ -190,7 +187,7 @@ mod tests {
             ..Default::default()
         };
 
-        test.execute(&*CRATE_LOCAL_MULTIPLIERS);
+        test.execute(&CRATE_LOCAL_MULTIPLIERS);
     }
 
     #[test]
@@ -235,7 +232,7 @@ mod tests {
             ..Default::default()
         };
 
-        test.execute(&*CRATE_LOCAL_MULTIPLIERS);
+        test.execute(&CRATE_LOCAL_MULTIPLIERS);
     }
 
     #[test]

@@ -16,7 +16,7 @@ pub enum SkipReason {
 pub fn skip<TState>(
     actions: &[ActionInstance<TState>],
     // todo - this really only needs to be the strs, but this might be easier - consider changing type or adding overload
-    active_multipliers: &[&Box<dyn Multiplier<TState>>],
+    active_multipliers: &[&dyn Multiplier<TState>],
     includes: &[&str],
     excludes: &[&str],
 ) -> SkipReason {
@@ -52,14 +52,14 @@ pub fn skip<TState>(
     SkipReason::NoSkip
 }
 
-pub fn get_active_multipliers<'a, TState>(env_name: &str, possible_multipliers: &'a [&Box<dyn Multiplier<TState>>]) -> Vec<&'a Box<dyn Multiplier<TState>>> {
+pub fn get_active_multipliers<'a, TState>(env_name: &str, possible_multipliers: &'a [&dyn Multiplier<TState>]) -> Vec<&'a dyn Multiplier<TState>> {
     let names = std::env::var(env_name).unwrap_or_default();
     let names = names.split(',').collect::<Vec<&str>>();
 
     get_matching_multipliers(&names, possible_multipliers)
 }
 
-pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers: &'a [&Box<dyn Multiplier<TState>>]) -> Vec<&'a Box<dyn Multiplier<TState>>> {
+pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers: &'a [&dyn Multiplier<TState>]) -> Vec<&'a dyn Multiplier<TState>> {
     possible_multipliers.iter()
         .filter(|possible_match| -> bool {
             for name in names {
@@ -73,7 +73,7 @@ pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers
         .collect()
 }
 
-pub fn apply<TState: Clone>(actions: &[ActionInstance<TState>], active_multipliers: &[&Box<dyn Multiplier<TState>>]) -> Vec<ActionInstance<TState>>{
+pub fn apply<TState: Clone>(actions: &[ActionInstance<TState>], active_multipliers: &[&dyn Multiplier<TState>]) -> Vec<ActionInstance<TState>>{
     let mut result = actions.to_vec();
 
     for active_multiplier in active_multipliers {
@@ -90,17 +90,5 @@ pub trait ActionAwareSkipper<TState> {
 impl<TState, TMultiplier: Multiplier<TState>> ActionAwareSkipper<TState> for TMultiplier {
     fn should_skip(&self, _actions: &[ActionInstance<TState>]) -> bool {
         false
-    }
-}
-
-// MultiplierMarker is a marker trait that allows the auto-implementation of other traits
-// by this package, without leaving the implmentations unbounded.
-//
-// Implementing it is not required, but it is convienient.
-pub trait MultiplierMarker {}
-
-impl<TState: Sized, TMultiplier: Multiplier<TState> + MultiplierMarker + 'static> From<TMultiplier> for Box<dyn Multiplier<TState>> {
-    fn from(value: TMultiplier) -> Self {
-        Box::new(value)
     }
 }
