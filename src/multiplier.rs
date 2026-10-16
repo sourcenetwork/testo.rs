@@ -61,15 +61,14 @@ pub fn get_active_multipliers<'a, TState>(env_name: &str, possible_multipliers: 
 
 pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers: &'a [&dyn Multiplier<TState>]) -> Vec<&'a dyn Multiplier<TState>> {
     possible_multipliers.iter()
-        .filter(|possible_match| -> bool {
+        .filter_map(|possible_match| {
             for name in names {
                 if possible_match.name() == *name {
-                    return  true;
+                    return Some(*possible_match);
                 }
             };
-            false
+            None
         })
-        .map(|n| *n)
         .collect()
 }
 
