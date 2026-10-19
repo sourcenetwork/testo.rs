@@ -15,15 +15,15 @@ mod actions {
     use std::sync::atomic::{Ordering};
     use super::state;
 
-    #[derive(Clone)]
+#[derive(Clone, Debug)]
     pub struct SumAction{
         pub value: i32,
     }
 
-    #[derive(Clone)]
+#[derive(Clone, Debug)]
     pub struct CounterAction{}
 
-    #[derive(Clone)]
+#[derive(Clone, Debug)]
     pub struct QueryAction{
         pub expected_sum: i32,
         pub expected_count: u32,
@@ -70,37 +70,35 @@ mod multipliers {
         fn apply(&self, actions: &[ActionInstance<state::State>]) -> Vec<ActionInstance<state::State>> {
             let mut resultant_actions =  Vec::new();
             for action in actions.iter() {
-                // WARNING - the async/sync split makes it easy for multipliers to mess this up (but maybe they might want to?)
+                let sum_action;
+                let is_async;
                 match action { 
                     ActionInstance::Async(async_action) => {
-                        match async_action.downcast_ref::<actions::SumAction>() {
-                            Some(s) => {
-                                resultant_actions.push(
-                                    actions::SumAction{
-                                        value: MAGNITUDE * s.value,
-                                    }.into_async(),
-                                );
-                            },
-                            None => {
-                                resultant_actions.push(action.clone());
-                            },
+                        sum_action = async_action.downcast_ref::<actions::SumAction>();
+                        is_async = true;
+                    },
+                    ActionInstance::Sync(sync_action) => {
+                        sum_action = sync_action.downcast_ref::<actions::SumAction>();
+                        is_async = false;
+                    },
+                };
+
+                let new_action = match sum_action {
+                    Some(s) => {
+                        let action = actions::SumAction{
+                            value: MAGNITUDE * s.value,
+                        };
+                        if is_async{
+                            action.into_async()
+                        } else {
+                            action.into()
                         }
                     },
-                    ActionInstance::Sync(sync_action) =>{
-                        match sync_action.downcast_ref::<actions::SumAction>() {
-                            Some(s) => {
-                                resultant_actions.push(
-                                    actions::SumAction{
-                                        value: MAGNITUDE * s.value,
-                                    }.into(),
-                                );
-                            },
-                            None => {
-                                resultant_actions.push(action.clone());
-                            },
-                        }
-                    },
-                }
+                    None => {
+                        action.clone()
+                    }
+                };
+                resultant_actions.push(new_action);
             }
             resultant_actions
         }
@@ -125,10 +123,6 @@ mod tests {
     }
 
     impl Test<'_> {
-        pub fn execute_base(&self) {// todo - do we want to add this?  easy to miss crate mults?
-            self.execute(&[]);
-        }
-
         pub fn execute(&self, crate_specific_multipliers: &[&dyn Multiplier<state::State>]) {
             let action_env_key = "EXAMPLE_MULTIPLIER_ENV_NAME";
             unsafe {
@@ -152,7 +146,6 @@ mod tests {
             let actions = multiplier::apply(&self.actions, &active_multipliers);
 
             let state: state::State = Default::default();
-            //let mut state = Arc::new(state);
             action::execute(state, actions.as_slice());
         }
     }
@@ -206,7 +199,7 @@ fn full_base() {
         ..Default::default()
     };
 
-    test.execute_base();
+    test.execute(&[]);
 }
 
 #[test]
@@ -257,5 +250,5 @@ fn full_with_missing_includes() {
         ..Default::default()
     };
 
-    test.execute_base();
+    test.execute(&[]);
 }

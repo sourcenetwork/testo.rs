@@ -10,12 +10,12 @@ struct State {
     counter: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SumAction{
     value: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct CounterAction{}
 
 impl ActionMarker for CounterAction{}

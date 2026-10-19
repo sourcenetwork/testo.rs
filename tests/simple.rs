@@ -5,12 +5,12 @@ struct State {
     sum: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SumAction{
     value: i32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SubtractAction{
     value: i32,
 }

@@ -4,7 +4,6 @@ use crate::{action::ActionInstance};
 pub trait Multiplier<TState> : ActionAwareSkipper<TState> + Sync + Send {
     // todo - try find a way to make this const whilst still permitting vtable (`Box<dyn Multiplier<TState>>`)
     fn name(&self) -> &str;
-    // todo 'actions'/return type
     fn apply(&self, actions: &[ActionInstance<TState>]) -> Vec<ActionInstance<TState>>;
 }
 

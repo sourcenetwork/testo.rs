@@ -1,10 +1,13 @@
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::marker::Sync;
 use std::thread;
 use std::any::Any;
 
-pub trait Action<TState> : ActionClone<TState> + Any {
+// todo - are you sure we cannot make this an enum, owned by consuming crates?  Stuff could define a generic that implements this.
+// Is there really a need for an open interface on ActionInstance?
+pub trait Action<TState> : ActionClone<TState> + Any + Debug {
     fn execute(&self, state: &mut TState);
 }
 
@@ -19,6 +22,8 @@ pub enum ActionInstance<TState> {
     Sync(Box<dyn Action<TState>>),
     Async(Box<dyn ActionAsync<TState>>),
 }
+
+// todo - implement serde for ActionInstance, but strongly consider making this a feature
 
 pub fn execute<TState: Clone + Sync + Send + 'static>(state: TState, actions: &[ActionInstance<TState>]) -> TState {
     let mut state = Arc::new(state);
