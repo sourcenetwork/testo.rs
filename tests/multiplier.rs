@@ -1,11 +1,12 @@
-use testo::action::{Action, ActionMarker, execute, ActionInstance};
+use testo::action::{Action, execute, ActionInstance};
+use testo::{actions, actions_async};
 use testo::multiplier::{Multiplier};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 
 #[derive(Clone)]
 #[derive(Default)]
-struct State {
+pub struct State {
     sum: Arc<AtomicI32>,
     counter: u32,
 }
@@ -18,17 +19,16 @@ struct SumAction{
 #[derive(Clone, Debug)]
 struct CounterAction{}
 
-impl ActionMarker for CounterAction{}
-impl ActionMarker for SumAction{}
-
 struct CounterMultiplier{}
 
-impl Multiplier<State> for CounterMultiplier {
-    fn name(&self) -> &str {
-        "CounterMultiplier"
-    }
+actions!(State, SumAction, CounterAction);
+actions_async!(State, SumAction);
 
-    fn apply(&self, actions: &[ActionInstance<State>]) -> Vec<ActionInstance<State>> {
+impl Multiplier<Actions, ActionsAsync> for CounterMultiplier {
+    type TState = State;
+    const NAME: &str = "Multiplier";
+
+    fn apply(&self, actions: &[ActionInstance<Actions, ActionsAsync>]) -> Vec<ActionInstance<Actions, ActionsAsync>> {
         let mut resultant_actions =  Vec::new();
         for action in actions.iter() {
             resultant_actions.push(action.clone());
@@ -39,13 +39,17 @@ impl Multiplier<State> for CounterMultiplier {
     }
 }
 
-impl Action<State> for SumAction {
+impl Action for SumAction {
+    type TState = State;
+
     fn execute(&self, state: &mut State) {
         state.sum.fetch_add(self.value, Ordering::Relaxed);
     }
 }
 
-impl Action<State> for CounterAction {
+impl Action for CounterAction {
+    type TState = State;
+
     fn execute(&self, state: &mut State) {
         state.counter += 1;
     }

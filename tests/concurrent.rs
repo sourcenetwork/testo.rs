@@ -1,11 +1,12 @@
-use testo::action::{Action, ActionAsync, ActionsAsync, ActionMarker};
+use testo::action::{Action};
+use testo::{actions, actions_async};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 use std::thread;
 
 #[derive(Clone)]
 #[derive(Default)]
-struct State {
+pub struct State {
     sum: Arc<AtomicI32>,
 }
 
@@ -19,15 +20,17 @@ struct SubtractAction{
     value: i32,
 }
 
-impl ActionMarker for SubtractAction{}
-impl ActionMarker for SumAction{}
-
-impl Action<State> for SumAction {
+impl Action for SumAction {
+    type TState = State;
     fn execute(&self, state: &mut State) {
         state.sum.fetch_add(self.value, Ordering::Relaxed);
     }
 }
 
+actions!(State, SumAction, SubtractAction);
+actions_async!(State, SumAction, SubtractAction);
+
+/*
 // todo - I really struggled to find a way to auto-implement this at the trait level,
 // have another go at somepoint, and maybe check in with Theo.
 impl Into<Arc<Box<dyn ActionAsync<State>>>> for SumAction {
@@ -35,13 +38,15 @@ impl Into<Arc<Box<dyn ActionAsync<State>>>> for SumAction {
         Arc::new(self.into())
     }
 }
+*/
+impl Action for SubtractAction {
+    type TState = State;
 
-impl Action<State> for SubtractAction {
     fn execute(&self, state: &mut State) {
         state.sum.fetch_add(-self.value, Ordering::Relaxed);
     }
 }
-
+/*
 // todo - I really struggled to find a way to auto-implement this at the trait level,
 // have another go at somepoint, and maybe check in with Theo.
 impl Into<Arc<Box<dyn ActionAsync<State>>>> for SubtractAction {
@@ -49,12 +54,12 @@ impl Into<Arc<Box<dyn ActionAsync<State>>>> for SubtractAction {
         Arc::new(self.into())
     }
 }
-
+ */
 #[test]
 fn multithread() {
     let state: State = Default::default();
 
-    let actions: &ActionsAsync<State> = &[
+    let actions: &[ActionsAsync] = &[
         SumAction{value: 20}.into(), 
         SubtractAction{value: 2}.into(),
         SubtractAction{value: 2}.into(),

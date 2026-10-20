@@ -1,10 +1,14 @@
-use crate::{action::ActionInstance};
+use crate::action::{ActionInstance, Action, ActionAsync};
 
 // todo - is generic a problem here?
-pub trait Multiplier<TState> : ActionAwareSkipper<TState> + Sync + Send {
-    // todo - try find a way to make this const whilst still permitting vtable (`Box<dyn Multiplier<TState>>`)
-    fn name(&self) -> &str;
-    fn apply(&self, actions: &[ActionInstance<TState>]) -> Vec<ActionInstance<TState>>;
+pub trait Multiplier<TAction, TActionAsync> : ActionAwareSkipper<TAction, TActionAsync> + Sync + Send 
+where TAction: Action,
+TActionAsync: ActionAsync{
+    type TState;// where TAction: Action<TState=Self::TState>;
+    const NAME: &str;
+
+    fn name(&self) -> &str { Self::NAME }
+    fn apply(&self, actions: &[ActionInstance<TAction, TActionAsync>]) -> Vec<ActionInstance<TAction, TActionAsync>>;
 }
 
 pub enum SkipReason {
@@ -12,13 +16,16 @@ pub enum SkipReason {
     Skip(String),
 }
 
-pub fn skip<TState>(
-    actions: &[ActionInstance<TState>],
+pub fn skip<TState, TAction, TActionAsync, TMultiplier> (
+    actions: &[ActionInstance<TAction, TActionAsync>],
     // todo - this really only needs to be the strs, but this might be easier - consider changing type or adding overload
-    active_multipliers: &[&dyn Multiplier<TState>],
+    active_multipliers: &[&TMultiplier],
     includes: &[&str],
     excludes: &[&str],
-) -> SkipReason {
+) -> SkipReason 
+where TAction: Action<TState=TState>,
+TActionAsync: ActionAsync<TState=TState>,
+TMultiplier: Multiplier<TAction, TActionAsync>{
     // todo - add tests to make sure this is not changed and an iterator is not reused (without reset) for multiple checks
     // (is what the wrapping closure is for, could be done with clones, but that feels easier to mess up)
     let active_names = || active_multipliers.iter().map(|m| m.name());
@@ -43,14 +50,20 @@ pub fn skip<TState>(
     SkipReason::NoSkip
 }
 
-pub fn get_active_multipliers<'a, TState>(env_name: &str, possible_multipliers: &'a [&dyn Multiplier<TState>]) -> Vec<&'a dyn Multiplier<TState>> {
+pub fn get_active_multipliers<'a, TState, TAction, TActionAsync, TMultiplier>(env_name: &str, possible_multipliers: &'a [&'a TMultiplier]) -> Vec<&'a TMultiplier> 
+where TAction: Action<TState = TState>,
+TActionAsync: ActionAsync<TState = TState>,
+TMultiplier: Multiplier<TAction, TActionAsync>{
     let names = std::env::var(env_name).unwrap_or_default();
     let names = names.split(',').collect::<Vec<&str>>();
 
-    get_matching_multipliers(&names, possible_multipliers)
+    get_matching_multipliers::<TState, TAction,TActionAsync,TMultiplier>(&names, possible_multipliers)
 }
 
-pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers: &'a [&dyn Multiplier<TState>]) -> Vec<&'a dyn Multiplier<TState>> {
+pub fn get_matching_multipliers<'a, TState, TAction, TActionAsync, TMultiplier>(names: &[&str], possible_multipliers: &'a [&'a TMultiplier]) -> Vec<&'a TMultiplier> 
+where TAction: Action,
+TActionAsync: ActionAsync,
+TMultiplier: Multiplier<TAction, TActionAsync>{
     possible_multipliers.iter()
         .filter(|possible_match| {
             names.iter()
@@ -60,7 +73,10 @@ pub fn get_matching_multipliers<'a, TState>(names: &[&str], possible_multipliers
         .collect()
 }
 
-pub fn apply<TState: Clone>(actions: &[ActionInstance<TState>], active_multipliers: &[&dyn Multiplier<TState>]) -> Vec<ActionInstance<TState>>{
+pub fn apply<TState: Clone, TAction, TActionAsync, TMultiplier>(actions: &[ActionInstance<TAction, TActionAsync>], active_multipliers: &[&TMultiplier]) -> Vec<ActionInstance<TAction, TActionAsync>>
+where TAction: Action<TState=TState>,
+TActionAsync: ActionAsync<TState=TState>,
+TMultiplier: Multiplier<TAction, TActionAsync>{
     let mut result = actions.to_vec();
 
     for active_multiplier in active_multipliers {
@@ -70,12 +86,16 @@ pub fn apply<TState: Clone>(actions: &[ActionInstance<TState>], active_multiplie
     result
 }
 
-pub trait ActionAwareSkipper<TState> {
-    fn should_skip(&self, _actions: &[ActionInstance<TState>]) -> bool;
+pub trait ActionAwareSkipper<TAction, TActionAsync>
+where TAction: Action,
+TActionAsync: ActionAsync{
+    fn should_skip(&self, _actions: &[ActionInstance<TAction, TActionAsync>]) -> bool;
 }
 
-impl<TState, TMultiplier: Multiplier<TState>> ActionAwareSkipper<TState> for TMultiplier {
-    fn should_skip(&self, _actions: &[ActionInstance<TState>]) -> bool {
+impl<TAction, TActionAsync, TMultiplier: Multiplier<TAction, TActionAsync>> ActionAwareSkipper<TAction, TActionAsync> for TMultiplier 
+where TAction: Action,
+TActionAsync: ActionAsync{
+    fn should_skip(&self, _actions: &[ActionInstance<TAction, TActionAsync>]) -> bool {
         false
     }
 }

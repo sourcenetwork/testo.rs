@@ -11,41 +11,48 @@ mod state {
 }
 
 mod actions {
-    use testo::action::{Action, ActionMarker};
+    use testo::action::{Action};
+    use testo::{actions, actions_async};
     use std::sync::atomic::{Ordering};
     use super::state;
+    use super::state::State;
 
-#[derive(Clone, Debug)]
+    #[derive(Clone, Debug)]
     pub struct SumAction{
         pub value: i32,
     }
 
-#[derive(Clone, Debug)]
+    #[derive(Clone, Debug)]
     pub struct CounterAction{}
 
-#[derive(Clone, Debug)]
+    #[derive(Clone, Debug)]
     pub struct QueryAction{
         pub expected_sum: i32,
         pub expected_count: u32,
     }
 
-    impl ActionMarker for CounterAction{}
-    impl ActionMarker for SumAction{}
-    impl ActionMarker for QueryAction{}
+    actions!(State, SumAction, CounterAction, QueryAction);
+    actions_async!(State, SumAction, CounterAction);
 
-    impl Action<state::State> for SumAction {
+    impl Action for SumAction {
+        type TState = state::State;
+
         fn execute(&self, state: &mut state::State) {
             state.sum.fetch_add(self.value, Ordering::Relaxed);
         }
     }
 
-    impl Action<state::State> for CounterAction {
+    impl Action for CounterAction {
+        type TState = state::State;
+
         fn execute(&self, state: &mut state::State) {
             state.counter += 1;
         }
     }
 
-    impl Action<state::State> for QueryAction {
+    impl Action for QueryAction {
+        type TState = state::State;
+
         fn execute(&self, state: &mut state::State) {
             assert_eq!(state.sum.load(Ordering::Relaxed), self.expected_sum);
             assert_eq!(state.counter, self.expected_count);
@@ -62,23 +69,49 @@ mod multipliers {
     const MAGNITUDE: i32 = 2;
     pub struct MultiplyMultiplier{}
 
-    impl Multiplier<state::State> for MultiplyMultiplier {
+    pub enum Multipliers {
+        MultiplyMultiplier(MultiplyMultiplier)
+    }
+
+    impl Multiplier<actions::Actions, actions::ActionsAsync> for Multipliers {
+        type TState = state::State;
+        const NAME: &str = "Multiplier";// todo - this is ugly, reconsider
+
         fn name(&self) -> &str {
-            "MultiplyMultiplier"
+            match self {
+                Multipliers::MultiplyMultiplier(m) => m.name()
+            }
         }
 
-        fn apply(&self, actions: &[ActionInstance<state::State>]) -> Vec<ActionInstance<state::State>> {
+        fn apply(&self, actions: &[ActionInstance<actions::Actions, actions::ActionsAsync>]) -> Vec<ActionInstance<actions::Actions, actions::ActionsAsync>> {
+            match self {
+                Multipliers::MultiplyMultiplier(m) => m.apply(actions)
+            }
+        }
+    }
+
+    impl Multiplier<actions::Actions, actions::ActionsAsync> for MultiplyMultiplier {
+        type TState = state::State;
+        const NAME: &str = "MultiplyMultiplier";
+
+        fn apply(&self, actions: &[ActionInstance<actions::Actions, actions::ActionsAsync>]) -> Vec<ActionInstance<actions::Actions, actions::ActionsAsync>> {
             let mut resultant_actions =  Vec::new();
             for action in actions.iter() {
                 let sum_action;
                 let is_async;
                 match action { 
                     ActionInstance::Async(async_action) => {
-                        sum_action = async_action.downcast_ref::<actions::SumAction>();
+                        sum_action = match async_action {
+                            actions::ActionsAsync::SumAction(a) => Some(a),
+                            _ => None,
+                        };
                         is_async = true;
                     },
                     ActionInstance::Sync(sync_action) => {
-                        sum_action = sync_action.downcast_ref::<actions::SumAction>();
+                        sum_action = match sync_action {
+                            actions::Actions::SumAction(a) => Some(a),
+                            _ => None,
+                        };
                         is_async = false;
                     },
                 };
@@ -107,11 +140,13 @@ mod multipliers {
 
 mod tests {
     use testo::action::{self, ActionInstance};
-    use testo::multiplier::{self, Multiplier, SkipReason};
+    use testo::multiplier::{self, SkipReason};
+    use super::actions;
+    use super::multipliers::{Multipliers};
     use std::env;
     use super::state;
 
-    static GLOBAL_MULTIPLIERS: [&dyn Multiplier<state::State>; 0] =[
+    static GLOBAL_MULTIPLIERS: [Multipliers; 0] =[
 
     ];
 
@@ -119,11 +154,11 @@ mod tests {
     pub struct Test<'a> {
         pub includes: &'a[&'a str],
         pub excludes: &'a[&'a str],
-        pub actions: &'a [ActionInstance<state::State>],
+        pub actions: &'a [ActionInstance<actions::Actions, actions::ActionsAsync>],
     }
 
     impl Test<'_> {
-        pub fn execute(&self, crate_specific_multipliers: &[&dyn Multiplier<state::State>]) {
+        pub fn execute(&self, crate_specific_multipliers: &[Multipliers]) {
             let action_env_key = "EXAMPLE_MULTIPLIER_ENV_NAME";
             unsafe {
                 // Test code only, don't actually do this :)
@@ -153,9 +188,10 @@ mod tests {
 
 use testo::action::{IntoAsync};
 use testo::multiplier::{Multiplier};
+    use multipliers::{Multipliers};
 
-static CRATE_LOCAL_MULTIPLIERS: [&dyn Multiplier<state::State>; 1] = [
-    &multipliers::MultiplyMultiplier{},
+static CRATE_LOCAL_MULTIPLIERS: [Multipliers; 1] = [
+    multipliers::Multipliers::MultiplyMultiplier(multipliers::MultiplyMultiplier{}),
 ];
 
 #[test]

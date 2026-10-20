@@ -1,31 +1,50 @@
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
-use std::marker::Sync;
+use std::marker::{Sync};
 use std::thread;
 use std::any::Any;
 
 // todo - are you sure we cannot make this an enum, owned by consuming crates?  Stuff could define a generic that implements this.
 // Is there really a need for an open interface on ActionInstance?
-pub trait Action<TState> : ActionClone<TState> + Any + Debug {
-    fn execute(&self, state: &mut TState);
+pub trait Action : Clone + Any + Debug {
+    type TState;
+    fn execute(&self, state: &mut Self::TState);
 }
 
-pub trait ActionAsync<TState>: ActionAsyncClone<TState> + Action<TState> + Sync + Send {}
-impl<TState: Clone + Sized, TAction: Action<TState> + Sync + Send + Clone> ActionAsync<TState> for TAction  {}
+pub trait ActionAsync: Clone + Action + Sync {}
+impl<TAction: Action + Sync + Clone> ActionAsync for TAction  {}
 
-pub type Actions<TState> = [Box<dyn Action<TState>>];
-pub type ActionsAsync<TState> = [Box<dyn ActionAsync<TState>>];
+// todo - Marker used to prevent auto-trait implemntation clashes (especially From when Debug implemented)
+// preferably remove, if not, properly document
+pub trait ActionMarker {}
 
+// todo - besides the horrible generics, using an enum instead of obj might prevent us from mixing actions from multiple sources.
+// without some kind of wrapping.  Think more on this, especially for multipliers.
+//
+// note - the double generic is horrible, but so far is really only exposed to consuming crates when defining multipliers, so it's not *that* bad.
+//
+// todo - generics can have defaults in Rust! (this seems limited to concrete types though, I think the double is still required on funcs, it might not save much)
 #[derive(Clone)]
-pub enum ActionInstance<TState> {
-    Sync(Box<dyn Action<TState>>),
-    Async(Box<dyn ActionAsync<TState>>),
+pub enum ActionInstance<TAction: Action, TActionAsync: ActionAsync> {
+    Sync(TAction),
+    Async(TActionAsync),
+}
+
+// todo - either manual implmentation, or TState must implement Debug (decide)
+// todo - below implementation is intelisense and needs checking.
+impl<TAction: Action, TActionAsync: ActionAsync> Debug for ActionInstance<TAction, TActionAsync> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sync(arg0) => f.debug_tuple("Sync").field(arg0).finish(),
+            Self::Async(arg0) => f.debug_tuple("Async").field(arg0).finish(),
+        }
+    }
 }
 
 // todo - implement serde for ActionInstance, but strongly consider making this a feature
 
-pub fn execute<TState: Clone + Sync + Send + 'static>(state: TState, actions: &[ActionInstance<TState>]) -> TState {
+pub fn execute<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: TState, actions: &[ActionInstance<TAction, TActionAsync>]) -> TState {
     let mut state = Arc::new(state);
 
     execute_a(&mut state, actions);
@@ -38,14 +57,23 @@ pub fn execute<TState: Clone + Sync + Send + 'static>(state: TState, actions: &[
     state.deref().clone()
 }
 
-pub fn execute_a<TState: Clone + Sync + Send + 'static>(state: &mut Arc<TState>, actions: &[ActionInstance<TState>]) {
+pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: &mut Arc<TState>, actions: &[ActionInstance<TAction, TActionAsync>]) {
     thread::scope(|scope| {
         let mut handles = Vec::new();
 
         for action in actions.iter() {
             match action {
-                ActionInstance::<TState>::Async(a) => {
+                ActionInstance::Async(a) => {
                     let mut state = Arc::clone(&state);
+                    // thought - I think that not using futures might be the right way to go, each action *is* synchronous from the test
+                    // perspective.  Internally they may use futures or whatever they like, but that is internal to themselves.  From
+                    // a harness perspective, they are synchronous.
+
+                    // thought - full Futures and an opaque threading model sounds crappy here.
+                    // not having to wory about *if* they are executing concurrently would be really nice.
+                    // Some fanciness should be required though perhaps, otherwise we will write crappy tests that try to spawn more threads than
+                    // the machine can support, as well as being really slow.
+                    //
                     // todo - this is very simple code, have a think as to whether it is worth doing something fancier
                     // across tests (current code might still be preferable to shared test stuff)
                     let handle = scope.spawn(move ||{
@@ -70,94 +98,103 @@ pub fn execute_a<TState: Clone + Sync + Send + 'static>(state: &mut Arc<TState>,
     });
 }
 
-pub trait IntoAsync<TState>{
-    fn into_async(self) -> ActionInstance::<TState>;
-}
-
-impl<TState: Clone + Sized, TAction: ActionAsync<TState> + Into<Box<dyn ActionAsync<TState>>> + Clone> IntoAsync<TState> for TAction {
-    fn into_async(self) -> ActionInstance<TState> {
-        ActionInstance::Async(self.into())
-    }
-}
-
-// ActionClone is a workaround to allow the auto-implementation of `Clone` for
-// `Box<dyn Action<TState>>`.
-//
-// `Action<TState>` cannot do this directly due to it needing to be vtable and dynamic-dispatch
-// friendly.
-pub trait ActionClone<TState> {
-    fn clone_box(&self) -> Box<dyn Action<TState>>;
-}
-
-impl<TAction: Action<TState> + Clone, TState> ActionClone<TState> for TAction {
-    fn clone_box(&self) -> Box<dyn Action<TState>> {
-        Box::new(self.clone())
-    }
-}
-
-impl<TState> Clone for Box<dyn Action<TState>> {
-    fn clone(&self) -> Box<dyn Action<TState>> {
-        self.clone_box()
-    }
-}
-
-// ActionAsyncClone is a workaround to allow the auto-implementation of `Clone` for
-// `Box<dyn ActionAsync<TState>>`.
-//
-// `ActionAsync<TState>` cannot do this directly due to it needing to be vtable and dynamic-dispatch
-// friendly.
-pub trait ActionAsyncClone<TState> {
-    // Warning: This func must have a different name to the silimar one in ActionClone as otherwise the
-    // compiler gets confused in impl<TState> Clone for Box<dyn ActionAsync<TState>>, direct referencing
-    // via ActionAsyncClone::clone_async_box didn't work as the compiler then got stuck in an infinate loop
-    // probably due to the horrible hack that this is.
-    fn clone_async_box(&self) -> Box<dyn ActionAsync<TState>>;
-}
-
-impl<TAction: ActionAsync<TState> + Clone, TState> ActionAsyncClone<TState> for TAction {
-    fn clone_async_box(&self) -> Box<dyn ActionAsync<TState>> {
-        Box::new(self.clone())
-    }
-}
-
-impl<TState> Clone for Box<dyn ActionAsync<TState>> {
-    fn clone(&self) -> Box<dyn ActionAsync<TState>> {
-        self.clone_async_box()
-    }
-}
-
-// ActionMarker is a marker trait that allows the auto-implementation of other traits
-// by this package, without leaving the implmentations unbounded.
-//
-// Implementing it is not required, but it is convienient.
-pub trait ActionMarker {}
-
-impl<TState: Sized, TAction: Action<TState> + ActionMarker> From<TAction> for Box<dyn Action<TState>> {
-    fn from(value: TAction) -> Self {
-        Box::new(value)
-    }
-}
-
-impl<TState: Sized, TAction: Action<TState> + ActionMarker> From<TAction> for ActionInstance::<TState> {
-    fn from(value: TAction) -> ActionInstance<TState> {
+impl<TAction: Action, TInner: Into<TAction> + Action+ActionMarker, TActionAsync: ActionAsync>
+ From<TInner> for ActionInstance::<TAction, TActionAsync> {
+    fn from(value: TInner) -> ActionInstance<TAction, TActionAsync> {
         ActionInstance::Sync(value.into())
     }
 }
 
-impl<TState: Clone + Sized, TAction: Action<TState> + ActionMarker + Sync + Send + Clone> From<TAction> for Box<dyn ActionAsync<TState>> {
-    fn from(value: TAction) -> Self {
-        Box::new(value)
+pub trait IntoAsync<TAction,TActionAsync>
+        where TAction: Action,
+        TActionAsync: ActionAsync {
+    fn into_async(self) -> ActionInstance::<TAction, TActionAsync>;
+}
+
+pub trait FromAsync<TAction,TActionAsync, TValue>
+        where TAction: Action,
+        TActionAsync: ActionAsync {
+    fn from_async(value: TValue) -> ActionInstance::<TAction, TActionAsync>;
+}
+
+impl<TAction,TActionAsync, TValue> FromAsync<TAction,TActionAsync, TValue> for TValue
+        where TActionAsync: ActionAsync + From<TValue>,
+        TAction: Action {
+    fn from_async(value: TValue) -> ActionInstance::<TAction, TActionAsync> {
+        ActionInstance::Async(value.into())
     }
 }
 
-impl<TState: 'static> dyn Action<TState> {
-    pub fn downcast_ref<TConcreteAction: Action<TState>>(&self) -> Option<&TConcreteAction> {
-        (self as &dyn Any).downcast_ref()
+impl<TAction,TActionAsync, TValue> IntoAsync<TAction,TActionAsync> for TValue
+        where TValue : FromAsync<TAction,TActionAsync, TValue>,
+        TAction: Action,
+        TActionAsync: ActionAsync {
+    fn into_async(self) -> ActionInstance::<TAction, TActionAsync> {
+        TValue::from_async(self)
     }
 }
 
-impl<TState: 'static> dyn ActionAsync<TState> {
-    pub fn downcast_ref<TConcreteAction: ActionAsync<TState>>(&self) -> Option<&TConcreteAction> {
-        (self as &dyn Any).downcast_ref()
+// TO REVIEWERS: These macros are probably temporary, I suggest not bothering to review them right now (including signatures and usage)
+//
+// todo - decide what to do :)
+#[macro_export]
+macro_rules! actions {
+    ($state:ident, $( $action:ident ),*) => {
+        #[derive(Clone, Debug)]
+        pub enum Actions {
+            $($action($action),)*
+        }
+
+        // todo - long term, this should really be a derive macro, but thats a pita right now, might get away without it for initial release
+        impl Action for Actions {
+            type TState = $state;
+
+            fn execute(&self, state: &mut $state) {
+                match self {
+                    $(Self::$action(a) => a.execute(state),)*
+                }
+            }
+        }
+
+        $(
+            impl From<$action> for Actions {
+                fn from(value: $action) -> Self {
+                    Actions::$action(value)
+                }
+            }
+        )*
+
+        $(
+            impl $crate::action::ActionMarker for $action {}
+        )*
+    }
+}
+
+#[macro_export]
+macro_rules! actions_async {
+    ($state:ident, $( $action:ident ),*) => {
+        #[derive(Clone, Debug)]
+        pub enum ActionsAsync {
+            $($action($action),)*
+        }
+
+        // todo - long term, this should really be a derive macro, but thats a pita right now, might get away without it for initial release
+        impl Action for ActionsAsync {
+            type TState = $state;
+
+            fn execute(&self, state: &mut $state) {
+                match self {
+                    $(Self::$action(a) => a.execute(state),)*
+                }
+            }
+        }
+
+        $(
+            impl From<$action> for ActionsAsync {
+                fn from(value: $action) -> Self {
+                    ActionsAsync::$action(value)
+                }
+            }
+        )*
     }
 }
