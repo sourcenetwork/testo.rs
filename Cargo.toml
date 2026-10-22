@@ -3,3 +3,10 @@ name = "testo"
 description = "todo"
 version = "0.0.1"
 edition = "2024"
+
+[dependencies]
+async-lock = "3.4.2"
+async-executor = "1.14.0"
+futures-lite = "2.6.1"
+async-io = "2.6.0"
+smol = "2.0.2"

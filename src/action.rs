@@ -57,6 +57,8 @@ pub fn execute<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TA
     state.deref().clone()
 }
 
+// todo - name
+// todo - consider making private
 pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: &mut Arc<TState>, actions: &[ActionInstance<TAction, TActionAsync>]) {
     thread::scope(|scope| {
         let mut handles = Vec::new();
@@ -74,6 +76,8 @@ pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, 
                     // Some fanciness should be required though perhaps, otherwise we will write crappy tests that try to spawn more threads than
                     // the machine can support, as well as being really slow.
                     //
+                    // question - is the threading model here repo specific?
+
                     // todo - this is very simple code, have a think as to whether it is worth doing something fancier
                     // across tests (current code might still be preferable to shared test stuff)
                     let handle = scope.spawn(move ||{
