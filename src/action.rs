@@ -5,6 +5,8 @@ use std::marker::{Sync};
 use std::thread;
 use std::any::Any;
 
+use crate::executor::{Executor, Scope};
+
 // todo - are you sure we cannot make this an enum, owned by consuming crates?  Stuff could define a generic that implements this.
 // Is there really a need for an open interface on ActionInstance?
 pub trait Action : Clone + Any + Debug {
@@ -44,7 +46,7 @@ impl<TAction: Action, TActionAsync: ActionAsync> Debug for ActionInstance<TActio
 
 // todo - implement serde for ActionInstance, but strongly consider making this a feature
 
-pub fn execute<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: TState, actions: &[ActionInstance<TAction, TActionAsync>]) -> TState {
+pub fn execute<'a, TState: Clone + Sync + Send+ super::executor::State<'a> +'a, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: TState, actions: &[ActionInstance<TAction, TActionAsync>]) -> TState {
     let mut state = Arc::new(state);
 
     execute_a(&mut state, actions);
@@ -57,15 +59,37 @@ pub fn execute<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TA
     state.deref().clone()
 }
 
+async fn foo<'a, TState: Clone + Sync + Send + super::executor::State<'a>, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>
+(a :&TActionAsync, state: &Arc<TState>) -> () {
+    let mut state = Arc::clone(&state);
+    let state = Arc::make_mut(&mut state);
+    a.execute(state)
+} 
+
 // todo - name
 // todo - consider making private
-pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: &mut Arc<TState>, actions: &[ActionInstance<TAction, TActionAsync>]) {
-    thread::scope(|scope| {
-        let mut handles = Vec::new();
-
+pub fn execute_a<'a, TState: Clone + Sync + Send + super::executor::State<'a> +'a, TAction: Action<TState = TState>, TActionAsync: ActionAsync<TState = TState>>(state: &'a mut Arc<TState>, actions: &'a [ActionInstance<TAction, TActionAsync>]) {
+    let executor = state.executor();
+    
+    executor.scope(|scope| {
         for action in actions.iter() {
             match action {
                 ActionInstance::Async(a) => {
+                    //let mut state = Arc::clone(&state);
+                    //let state = Arc::make_mut(&mut state);
+                    //let f = foo::<TState, TAction, TActionAsync>(a, state);
+                    // todo - the return value from `scope.spawn` is key to making this work - it needs to 'consume' and own the future
+                    scope.spawn(
+                        //a.execute(state)
+                        //f
+                        (async || {
+                            let mut state = Arc::clone(&state);
+                            let state = Arc::make_mut(&mut state);
+                            a.execute(state)
+                        })()
+                    );// todo - need to ensure that tasks are collected before exiting `execute_a`
+                    // executor.scope?
+                    /*
                     let mut state = Arc::clone(&state);
                     // thought - I think that not using futures might be the right way to go, each action *is* synchronous from the test
                     // perspective.  Internally they may use futures or whatever they like, but that is internal to themselves.  From
@@ -86,13 +110,15 @@ pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, 
                     });
 
                     handles.push(handle);
+                     */
                 },
                 ActionInstance::Sync(a) =>{
+                     /*
                     handles.into_iter().for_each(|h| {
                         h.join().unwrap();
                     });
                     handles = Vec::new();
-
+ */
                     let state = Arc::get_mut(state)
                         .unwrap_or_else(||panic!("test thread leaked, programming error, likely in this function"));
                     a.execute(state);
@@ -100,6 +126,59 @@ pub fn execute_a<TState: Clone + Sync + Send, TAction: Action<TState = TState>, 
             }
         }
     });
+    /*
+    //thread::scope(|scope| {
+        //let mut handles = Vec::new();
+
+        for action in actions.iter() {
+            match action {
+                ActionInstance::Async(a) => {
+                    //let mut state = Arc::clone(&state);
+                       // let state = Arc::make_mut(&mut state);
+                    let f = foo::<TState, TAction, TActionAsync>(a, &mut state);
+                    executor.spawn::<'a, ()>(
+                        //a.execute(state)
+                        f
+                    );// todo - need to ensure that tasks are collected before exiting `execute_a`
+                    // executor.scope?
+                    /*
+                    let mut state = Arc::clone(&state);
+                    // thought - I think that not using futures might be the right way to go, each action *is* synchronous from the test
+                    // perspective.  Internally they may use futures or whatever they like, but that is internal to themselves.  From
+                    // a harness perspective, they are synchronous.
+
+                    // thought - full Futures and an opaque threading model sounds crappy here.
+                    // not having to wory about *if* they are executing concurrently would be really nice.
+                    // Some fanciness should be required though perhaps, otherwise we will write crappy tests that try to spawn more threads than
+                    // the machine can support, as well as being really slow.
+                    //
+                    // question - is the threading model here repo specific?
+
+                    // todo - this is very simple code, have a think as to whether it is worth doing something fancier
+                    // across tests (current code might still be preferable to shared test stuff)
+                    let handle = scope.spawn(move ||{
+                        let state = Arc::make_mut(&mut state);
+                        a.execute(state)
+                    });
+
+                    handles.push(handle);
+                     */
+                },
+                ActionInstance::Sync(a) =>{
+                     /*
+                    handles.into_iter().for_each(|h| {
+                        h.join().unwrap();
+                    });
+                    handles = Vec::new();
+ */
+                    let state = Arc::get_mut(state)
+                        .unwrap_or_else(||panic!("test thread leaked, programming error, likely in this function"));
+                    a.execute(state);
+                },
+            }
+        }
+    //});
+     */
 }
 
 impl<TAction: Action, TInner: Into<TAction> + Action+ActionMarker, TActionAsync: ActionAsync>

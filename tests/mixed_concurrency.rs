@@ -9,6 +9,7 @@ pub struct State {
     sum: Arc<AtomicI32>,
     counter: u32,
 }
+impl testo::executor::DefaultMarker for State {}
 
 #[derive(Clone, Debug)]
 struct SumAction{

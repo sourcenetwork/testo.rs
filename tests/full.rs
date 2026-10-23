@@ -8,6 +8,8 @@ mod state {
         pub sum: Arc<AtomicI32>,
         pub counter: u32,
     }
+
+    impl testo::executor::DefaultMarker for State {}
 }
 
 mod actions {
