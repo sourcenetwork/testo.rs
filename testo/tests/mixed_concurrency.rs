@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
-use testo::Action;
-use testo::action::{Action, ActionInstance, ActionMarker, IntoAsync, execute};
+use testo::derive::Action;
+use testo::prelude::*;
+use testo::action::{ ActionMarker, execute};
 
 #[cfg(feature = "serde")]
 use serde::Serialize;

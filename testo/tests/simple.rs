@@ -1,4 +1,4 @@
-use testo::Action;
+use testo::derive::Action;
 use testo::action::Action;
 
 #[cfg(feature = "serde")]

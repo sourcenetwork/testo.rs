@@ -13,8 +13,9 @@ mod actions {
     use super::state;
     use super::state::State;
     use std::sync::atomic::Ordering;
-    use testo::Action;
-    use testo::action::{Action, ActionMarker};
+    use testo::derive::Action;
+    use testo::prelude::*;
+    use testo::action::{ActionMarker};
 
     #[cfg(feature = "serde")]
     use serde::Serialize;
@@ -76,8 +77,7 @@ mod actions {
 mod multipliers {
     use super::actions;
     use super::actions::Actions;
-    use testo::action::{ActionInstance, IntoAsync};
-    use testo::multiplier::Multiplier;
+    use testo::prelude::*;
     use testo::multipliers;
 
     const MAGNITUDE: i32 = 2;
@@ -139,7 +139,7 @@ mod tests {
     use super::multipliers::Multipliers;
     use super::state;
     use std::env;
-    use testo::action::{self, ActionInstance};
+    use testo::{action, prelude::*};
     use testo::multiplier::{self, SkipReason};
 
     static GLOBAL_MULTIPLIERS: [Multipliers; 0] = [];
@@ -187,8 +187,7 @@ mod tests {
 }
 
 use multipliers::Multipliers;
-use testo::action::IntoAsync;
-use testo::multiplier::Multiplier;
+use testo::prelude::*;
 
 static CRATE_LOCAL_MULTIPLIERS: [Multipliers; 1] = [multipliers::Multipliers::MultiplyMultiplier(
     multipliers::MultiplyMultiplier {},
