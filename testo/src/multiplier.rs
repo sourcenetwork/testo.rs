@@ -1,7 +1,4 @@
-use crate::{
-    action::{Action, ActionAsync, ActionInstance},
-    multiplier::SkipReason::NoSkip,
-};
+use crate::action::{Action, ActionAsync, ActionInstance};
 
 pub trait Multiplier<TActionAsync, TAction = TActionAsync>
 where
@@ -20,7 +17,7 @@ where
     ) -> Vec<ActionInstance<TActionAsync, TAction>>;
 
     fn should_skip(&self, _actions: &[ActionInstance<TActionAsync, TAction>]) -> SkipReason {
-        NoSkip
+        SkipReason::NoSkip
     }
 }
 
