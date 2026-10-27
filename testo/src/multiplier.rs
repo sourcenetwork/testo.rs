@@ -3,7 +3,7 @@ use crate::{
     multiplier::SkipReason::NoSkip,
 };
 
-pub trait Multiplier<TActionAsync, TAction=TActionAsync>
+pub trait Multiplier<TActionAsync, TAction = TActionAsync>
 where
     TAction: Action,
     TActionAsync: ActionAsync,

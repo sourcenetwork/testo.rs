@@ -37,10 +37,7 @@ struct CounterMultiplier {}
 impl Multiplier<Actions> for CounterMultiplier {
     const NAME: &str = "CounterMultiplier";
 
-    fn apply(
-        &self,
-        actions: &[ActionInstance<Actions>],
-    ) -> Vec<ActionInstance<Actions>> {
+    fn apply(&self, actions: &[ActionInstance<Actions>]) -> Vec<ActionInstance<Actions>> {
         let mut resultant_actions = Vec::new();
         for action in actions.iter() {
             resultant_actions.push(action.clone());

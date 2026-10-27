@@ -36,14 +36,22 @@ pub trait ActionMarker {}
 
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
-pub enum ActionInstance<TActionAsync: ActionAsync, TAction: Action=TActionAsync> {
+pub enum ActionInstance<TActionAsync, TAction = TActionAsync>
+where
+    TActionAsync: ActionAsync,
+    TAction: Action,
+{
     Sync(TAction),
     Async(TActionAsync),
 }
 
 // todo - either manual implmentation, or TState must implement Debug (decide)
 // todo - below implementation is intelisense and needs checking.
-impl<TAction: Action, TActionAsync: ActionAsync> Debug for ActionInstance<TActionAsync, TAction> {
+impl<TAction, TActionAsync> Debug for ActionInstance<TActionAsync, TAction>
+where
+    TAction: Action,
+    TActionAsync: ActionAsync,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Sync(arg0) => f.debug_tuple("Sync").field(arg0).finish(),
@@ -52,14 +60,15 @@ impl<TAction: Action, TActionAsync: ActionAsync> Debug for ActionInstance<TActio
     }
 }
 
-pub fn execute<
+pub fn execute<TState, TAction, TActionAsync>(
+    state: TState,
+    actions: &[ActionInstance<TActionAsync, TAction>],
+) -> TState
+where
     TState: Clone + Sync + Send,
     TAction: Action<TState = TState>,
     TActionAsync: ActionAsync<TState = TState>,
->(
-    state: TState,
-    actions: &[ActionInstance<TActionAsync, TAction>],
-) -> TState {
+{
     let mut state = Arc::new(state);
 
     execute_arc(&mut state, actions);
@@ -72,14 +81,14 @@ pub fn execute<
     state.deref().clone()
 }
 
-fn execute_arc<
+fn execute_arc<TState, TAction, TActionAsync>(
+    state: &mut Arc<TState>,
+    actions: &[ActionInstance<TActionAsync, TAction>],
+) where
     TState: Clone + Sync + Send,
     TAction: Action<TState = TState>,
     TActionAsync: ActionAsync<TState = TState>,
->(
-    state: &mut Arc<TState>,
-    actions: &[ActionInstance<TActionAsync, TAction>],
-) {
+{
     thread::scope(|scope| {
         let mut handles = Vec::new();
 
@@ -112,8 +121,11 @@ fn execute_arc<
     });
 }
 
-impl<TAction: Action, TInner: Into<TAction> + Action + ActionMarker, TActionAsync: ActionAsync>
-    From<TInner> for ActionInstance<TActionAsync, TAction>
+impl<TAction, TInner, TActionAsync> From<TInner> for ActionInstance<TActionAsync, TAction>
+where
+    TAction: Action,
+    TInner: Into<TAction> + Action + ActionMarker,
+    TActionAsync: ActionAsync,
 {
     fn from(value: TInner) -> ActionInstance<TActionAsync, TAction> {
         ActionInstance::Sync(value.into())
