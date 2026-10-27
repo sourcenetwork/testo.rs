@@ -34,7 +34,7 @@ impl<TAction: Action + Sync> ActionAsync for TAction {}
 // the `#[derive(Action)]` macro.
 pub trait ActionMarker {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum ActionInstance<TActionAsync, TAction = TActionAsync>
 where
@@ -43,21 +43,6 @@ where
 {
     Sync(TAction),
     Async(TActionAsync),
-}
-
-// todo - either manual implmentation, or TState must implement Debug (decide)
-// todo - below implementation is intelisense and needs checking.
-impl<TAction, TActionAsync> Debug for ActionInstance<TActionAsync, TAction>
-where
-    TAction: Action,
-    TActionAsync: ActionAsync,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Sync(arg0) => f.debug_tuple("Sync").field(arg0).finish(),
-            Self::Async(arg0) => f.debug_tuple("Async").field(arg0).finish(),
-        }
-    }
 }
 
 pub fn execute<TState, TAction, TActionAsync>(
