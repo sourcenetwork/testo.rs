@@ -124,7 +124,12 @@ pub fn derive_multipliers(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     proc_macro::TokenStream::from(expanded)
 }
 
-fn implement_multiplier_enum(ident: Ident, actions: String, actions_async: String, data: DataEnum) -> TokenStream {
+fn implement_multiplier_enum(
+    ident: Ident,
+    actions: String,
+    actions_async: String,
+    data: DataEnum,
+) -> TokenStream {
     let multiplier: Vec<TokenStream> = data
         .variants
         .iter()

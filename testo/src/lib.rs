@@ -8,5 +8,5 @@ pub mod derive {
 
 pub mod prelude {
     pub use crate::action::{Action, ActionInstance, IntoAsync};
-    pub use crate::multiplier::{Multiplier};
+    pub use crate::multiplier::Multiplier;
 }

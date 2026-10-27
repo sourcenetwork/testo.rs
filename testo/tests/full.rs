@@ -139,8 +139,8 @@ mod tests {
     use super::multipliers::Multipliers;
     use super::state;
     use std::env;
-    use testo::{action, prelude::*};
     use testo::multiplier::{self, SkipReason};
+    use testo::{action, prelude::*};
 
     static GLOBAL_MULTIPLIERS: [Multipliers; 0] = [];
 
