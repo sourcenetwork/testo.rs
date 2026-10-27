@@ -78,12 +78,16 @@ mod multipliers {
     use super::actions;
     use super::actions::Actions;
     use testo::prelude::*;
-    use testo::multipliers;
+    use testo_derive::Multiplier;
 
     const MAGNITUDE: i32 = 2;
     pub struct MultiplyMultiplier {}
 
-    multipliers!(Actions, Actions, MultiplyMultiplier);
+    #[derive(Multiplier)]
+    #[TActionAsync = "Actions"]
+    pub enum Multipliers {
+        MultiplyMultiplier(MultiplyMultiplier),
+    }
 
     impl Multiplier<actions::Actions> for MultiplyMultiplier {
         const NAME: &str = "MultiplyMultiplier";

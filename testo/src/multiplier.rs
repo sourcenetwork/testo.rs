@@ -125,37 +125,3 @@ where
 
     result
 }
-
-// todo - this is likely to be converted to a derive macro in the near future.
-//
-// Either way, its usage is completely optional.
-#[macro_export]
-macro_rules! multipliers {
-    ($actions:ident, $actions_async:ident, $( $multiplier:ident ),*) => {
-        pub enum Multipliers {
-            $($multiplier($multiplier),)*
-        }
-
-        // todo - long term, this should really be a derive macro, but thats a pita right now, might get away without it for initial release
-        impl Multiplier<$actions, $actions_async> for Multipliers {
-            const NAME: &str = "MultiplierEnum"; // todo - this is ugly, reconsider
-
-            fn name(&self) -> &str {
-                match self {
-                    $(Multipliers::$multiplier(m) => m.name(),)*
-                }
-            }
-
-            fn apply(
-                &self,
-                actions: &[ActionInstance<$actions_async, $actions>],
-            ) -> Vec<ActionInstance<$actions_async, $actions>> {
-                match self {
-                    $(Multipliers::$multiplier(m) => m.apply(actions),)*
-                }
-            }
-        }
-
-        // todo - also implementing `from` might be more consistent?
-    }
-}
