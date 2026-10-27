@@ -1,5 +1,5 @@
-use testo::derive::Action;
 use testo::action::Action;
+use testo::derive::Action;
 
 #[cfg(feature = "serde")]
 use serde::Serialize;

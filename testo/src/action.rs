@@ -23,17 +23,6 @@ pub trait Action: Clone + Any + Debug {
 pub trait ActionAsync: Action + Sync {}
 impl<TAction: Action + Sync> ActionAsync for TAction {}
 
-// The ActionMarker trait can be used to flag an Action as an Action
-// without the compiler freaking out when declaring auto-implemented functions.
-//
-// Its implmentation is completely optional, however implmenting it will
-// provide the implementation of `into` (via `From`) for `ActionInstance`,
-// allowing `FooAction{...}.into()` when declaring tests.
-//
-// In the near future it might be that this will be provided via
-// the `#[derive(Action)]` macro.
-pub trait ActionMarker {}
-
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub enum ActionInstance<TActionAsync, TAction = TActionAsync>
@@ -109,7 +98,7 @@ fn execute_arc<TState, TAction, TActionAsync>(
 impl<TAction, TInner, TActionAsync> From<TInner> for ActionInstance<TActionAsync, TAction>
 where
     TAction: Action,
-    TInner: Into<TAction> + Action + ActionMarker,
+    TInner: Into<TAction> + Action,
     TActionAsync: ActionAsync,
 {
     fn from(value: TInner) -> ActionInstance<TActionAsync, TAction> {

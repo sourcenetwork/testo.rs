@@ -15,7 +15,6 @@ mod actions {
     use std::sync::atomic::Ordering;
     use testo::derive::Action;
     use testo::prelude::*;
-    use testo::action::{ActionMarker};
 
     #[cfg(feature = "serde")]
     use serde::Serialize;
@@ -25,12 +24,10 @@ mod actions {
     pub struct SumAction {
         pub value: i32,
     }
-    impl ActionMarker for SumAction {}
 
     #[derive(Clone, Debug)]
     #[cfg_attr(feature = "serde", derive(Serialize))]
     pub struct CounterAction {}
-    impl ActionMarker for CounterAction {}
 
     #[derive(Clone, Debug)]
     #[cfg_attr(feature = "serde", derive(Serialize))]
@@ -38,7 +35,6 @@ mod actions {
         pub expected_sum: i32,
         pub expected_count: u32,
     }
-    impl ActionMarker for QueryAction {}
 
     #[derive(Clone, Debug, Action)]
     #[TState = "State"]

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
+use testo::action::execute;
 use testo::derive::Action;
 use testo::prelude::*;
-use testo::action::{ ActionMarker, execute};
 
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -18,12 +18,10 @@ pub struct State {
 struct SumAction {
     value: i32,
 }
-impl ActionMarker for SumAction {}
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 struct CounterAction {}
-impl ActionMarker for CounterAction {}
 
 #[derive(Clone, Debug, Action)]
 #[TState = "State"]
