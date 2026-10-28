@@ -1,3 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["testo", "derive"]
+members = ["crates/testo", "crates/testo-derive"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+
+[workspace.dependencies]
+syn = "3.0.9"
+quote = "1.0"
+proc-macro2 = "1"
