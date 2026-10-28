@@ -21,7 +21,93 @@ pub mod multiplier;
 
 /// Convenience derive-macros that can optionally be used to eliminate some of the boilerplate.
 pub mod derive {
+    /// Implements [Action](crate::action::Action) for the enum that this attribute sits upon.
+    ///
+    /// It requires an additional parameter specifying the exact name of the actions' [TState](crate::action::Action::TState) type
+    /// as a string.
+    ///
+    /// In the short-term it also requires that each enum's variant matches the type-name of the [Action](crate::action::Action)
+    /// that it contains.
+    ///
+    /// Its usage is completely optional, and is currently quite badly coded - using it in unexpected ways might result in unhelpful
+    /// compiler errors or unwanted behaviour.
+    ///
+    /// ## Example
+    /// ```
+    /// # use testo::prelude::*;
+    /// # use testo::derive::Action;
+    /// #
+    /// # #[derive(Clone, Debug)]
+    /// # struct ExampleAction{}
+    /// #
+    ///   struct State {
+    ///     // ... state props
+    ///   }
+    ///
+    ///   impl Action for ExampleAction {
+    ///     type TState = State;
+    ///     fn execute(&self, state: &mut State){}
+    ///   }
+    ///
+    ///   #[derive(Clone, Debug, Action)]
+    ///   #[TState = "State"]
+    ///   enum Actions {
+    ///     ExampleAction(ExampleAction),
+    ///   }
+    /// ```
     pub use testo_derive::Action;
+
+    /// Implements [Multiplier](crate::multiplier::Multiplier) for the enum that this attribute sits upon.
+    ///
+    /// It requires an additional parameter specifying the exact name of the actions' enum as a string.
+    ///
+    /// In the short-term it also requires that each enum's variant matches the type-name of the [Multiplier](crate::multiplier::Multiplier)
+    /// that it contains.
+    ///
+    /// Its usage is completely optional, and is currently quite badly coded - using it in unexpected ways might result in unhelpful
+    /// compiler errors or unwanted behaviour.
+    ///
+    /// ## Example
+    /// ```
+    /// # use testo::prelude::*;
+    /// # use testo::derive::Multiplier;
+    /// # use testo::derive::Action;
+    /// #
+    /// # #[derive(Clone, Debug)]
+    /// # struct ExampleAction{}
+    /// #
+    ///   struct ExampleMultiplier{}
+    /// #
+    /// # impl Multiplier<Actions> for ExampleMultiplier {
+    /// #  const NAME: &str = "ExampleMultiplier";
+    /// #
+    /// #  fn apply(
+    /// #       &self,
+    /// #      actions: &[ActionInstance<Actions>],
+    /// #  ) -> Vec<ActionInstance<Actions>> { todo!() }
+    /// # }
+    ///
+    ///   struct State {
+    ///       // ... state props
+    ///   }
+    /// #
+    /// # impl Action for ExampleAction {
+    /// #     type TState = State;
+    /// #     fn execute(&self, state: &mut State){}
+    /// # }
+    ///
+    ///   #[derive(Clone, Debug, Action)]
+    ///   #[TState = "State"]
+    ///   enum Actions {
+    ///       ExampleAction(ExampleAction),
+    ///   }
+    ///
+    ///   #[derive(Multiplier)]
+    ///   #[TActionAsync = "Actions"]
+    ///   enum Multipliers {
+    ///       ExampleMultiplier(ExampleMultiplier),
+    ///   }
+    /// ```
     pub use testo_derive::Multiplier;
 }
 
