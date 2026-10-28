@@ -24,7 +24,7 @@ pub trait Action: Clone + Any + Debug + Serialize {
 ///
 /// ## Async
 ///
-/// An [Action] that also implements [Send] will auto-implement [ActionAsync], allowing tests to specify that they wish that action instance to execute
+/// An [Action] that also implements [Sync] will auto-implement [ActionAsync], allowing tests to specify that they wish that action instance to execute
 /// concurrently alongside similarly configured, adjacent actions.
 ///
 /// ## Serde

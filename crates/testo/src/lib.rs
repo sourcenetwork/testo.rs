@@ -7,7 +7,7 @@ Tests are defined using strongly typed, declarative, [Actions](action::Action).
 be selected and/or excluded based on the location, environment, and test actions.
 
 The Rust implementation of Testo is new, and currently lacks large-scale example projects.  The tests within this repository, particularly in
-[full.rs](https://github.com/sourcenetwork/testo.rs/blob/main/testo/tests/full.rs) may be useful in the near term. Alternatively, the
+[full.rs](https://github.com/sourcenetwork/testo.rs/blob/main/testo/testo/tests/full.rs) may be useful in the near term. Alternatively, the
 [Go implementation](https://github.com/sourcenetwork/testo) is built off of the same concepts, and is best illustrated via
 [CoreKV](https://github.com/sourcenetwork/corekv/tree/main/test).
 */
