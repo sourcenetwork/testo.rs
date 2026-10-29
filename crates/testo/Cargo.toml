@@ -10,3 +10,8 @@ serde = ["dep:serde"]
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 testo_derive = { path = "../testo-derive" }
+async-lock.workspace = true
+async-executor.workspace = true
+futures-lite.workspace = true
+async-io.workspace = true
+smol.workspace = true

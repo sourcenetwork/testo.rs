@@ -4,6 +4,7 @@ use std::marker::Sync;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::thread;
+use crate::executor::{Executor, Scope};
 
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -80,23 +81,28 @@ where
     /// # use testo::prelude::*;
     /// # use testo::action::execute;
     /// # use testo::derive::Action;
+    /// # use testo::executor::DefaultMarker;
+    /// #
+    /// # #[derive(Clone)]
+    /// # struct State {}
+    /// # impl DefaultMarker for State {}
     /// #
     /// # #[derive(Clone, Debug)]
     /// # struct ExampleAction{}
     /// #
     /// # impl Action for ExampleAction {
-    /// #   type TState = i32;
-    /// #   fn execute(&self, state: &mut i32){}
+    /// #   type TState = State;
+    /// #   fn execute(&self, state: &mut State){}
     /// # }
     /// #
     /// # #[derive(Clone, Debug, Action)]
-    /// # #[TState = "i32"]
+    /// # #[TState = "State"]
     /// # enum Actions {
     /// #   ExampleAction(ExampleAction),
     /// # }
     /// #
     /// # fn example_test() {
-    /// #   let state = 0;
+    /// #   let state = State{};
     /// #
     ///      let actions: &[ActionInstance<Actions>] = &[
     ///         // These first two actions will execute concurrently.
@@ -133,12 +139,12 @@ where
 ///
 /// Currently, each [Async](ActionInstance::Async) action will spawn its own thread, this is very likely to change soon with
 /// <https://github.com/sourcenetwork/testo.rs/issues/3>.
-pub fn execute<TState, TAction, TActionAsync>(
+pub fn execute<'a, TState, TAction, TActionAsync>(
     state: TState,
-    actions: &[ActionInstance<TActionAsync, TAction>],
+    actions: &'a [ActionInstance<TActionAsync, TAction>],
 ) -> TState
 where
-    TState: Clone + Sync + Send,
+    TState: Clone + Sync + Send + super::executor::State<'a> +'a,
     TAction: Action<TState = TState>,
     TActionAsync: ActionAsync<TState = TState>,
 {
@@ -154,45 +160,113 @@ where
     state.deref().clone()
 }
 
-fn execute_arc<TState, TAction, TActionAsync>(
-    state: &mut Arc<TState>,
-    actions: &[ActionInstance<TActionAsync, TAction>],
+fn execute_arc<'a,'b, TState, TAction, TActionAsync>(
+    state: &'b mut Arc<TState>, // todo - this is different, Tstate lives for a, but the arc does not
+    actions: &'a [ActionInstance<TActionAsync, TAction>],
 ) where
-    TState: Clone + Sync + Send,
+    TState: Clone + Sync + Send + super::executor::State<'a> +'a,
     TAction: Action<TState = TState>,
     TActionAsync: ActionAsync<TState = TState>,
 {
-    thread::scope(|scope| {
-        let mut handles = Vec::new();
+    let mut state = state;
+    let executor = state.executor();
+                            println!("aa");
 
-        for action in actions.iter() {
-            match action {
-                ActionInstance::Async(a) => {
-                    let mut state = Arc::clone(&state);
-                    // todo - this is being reworked in the immediate future here:
-                    // https://github.com/sourcenetwork/testo.rs/issues/3
-                    let handle = scope.spawn(move || {
-                        let state = Arc::make_mut(&mut state);
-                        a.execute(state)
-                    });
-
-                    handles.push(handle);
+    let mut async_actions: Vec<&TActionAsync> = Vec::new();
+    let mut action_index = 0;
+    let mut run_async = false;
+    loop {
+        println!("{}", action_index);
+        if run_async {
+                            println!("c");
+            executor.scope(|mut scope| {
+                for action in async_actions.iter() {
+                    // todo - t is not really required, as they will all get closed when out of scope, but it would be good to figure out
+                    let t = scope.spawn(
+                        (async || {
+                            println!("a");
+                            let mut state = Arc::clone(&state);
+                            let state = Arc::make_mut(&mut state);
+                            action.execute(state);
+                            println!("b")
+                        })()
+                    );
                 }
-                ActionInstance::Sync(a) => {
-                    handles.into_iter().for_each(|h| {
-                        h.join().unwrap();
-                    });
-                    handles = Vec::new();
-
-                    let state = Arc::get_mut(state).unwrap_or_else(|| {
-                        panic!("test thread leaked, programming error, likely in this function")
-                    });
-                    a.execute(state);
-                }
-            }
+            });
+            async_actions = Vec::new();
+            run_async = false;
+            continue;
         }
-    });
+
+        if action_index >= actions.len() {
+            break;
+        }
+
+        let action = &actions[action_index];
+
+        match action {
+            ActionInstance::Async(a) => {
+                println!("v");
+                async_actions.push(a);
+                action_index += 1;
+                continue;
+            }
+            ActionInstance::Sync(a) =>{
+                println!("s");
+                if async_actions.len() > 0  {
+                    run_async = true;
+                    continue;
+                }
+                    /*
+                handles.into_iter().for_each(|h| {
+                    h.join().unwrap();
+                });
+                handles = Vec::new();
+*/
+
+                // todo - original (pre-unsafe code):
+                // The compiler does not like `get_mut` atm without a `clone` as it thinks the borrow in the async code
+                // is still active, thread::scope didn't have this problem, so I have probably messed up a lifetime somewhere.
+                //
+                // The below clone gets around the compiler, however it also
+                // bumps the ref count, causing Arc::get_mut to fail
+                // let mut state = Arc::clone(&state); // cannot do this - bumps ref count triggering clone
+                let inner_state = Arc::get_mut(&mut state)
+                    .unwrap_or_else(||panic!("test thread leaked, programming error, likely in this function"));
+                a.execute(inner_state);
+
+                action_index += 1;
+                continue;
+            },
+        }
+    }
+
+
+    if async_actions.len() > 0 { // todo - this is horrible coding, rework
+        executor.scope(|mut scope| {
+            for action in async_actions.iter() {
+                // todo - t is not really required, as they will all get closed when out of scope, but it would be good to figure out
+                let t = scope.spawn(
+                    (async || {
+                        let mut state = Arc::clone(&state);
+                        let state = Arc::make_mut(&mut state);
+                        action.execute(state)
+                    })()
+                );
+            }
+        });
+    }
 }
+
+fn foo(a: &mut i64){}
+fn bar(b: & i64){}
+fn fb() {
+    let mut x = 1i64;
+    foo(&mut x);
+    bar(&x);
+    foo(&mut x);
+}
+
 
 impl<TAction, TInner, TActionAsync> From<TInner> for ActionInstance<TActionAsync, TAction>
 where

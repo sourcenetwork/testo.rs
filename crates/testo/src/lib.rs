@@ -19,6 +19,10 @@ pub mod action;
 /// property based testing.
 pub mod multiplier;
 
+pub mod executor;
+pub mod executor_tpa;
+pub mod executor_multi;
+
 /// Convenience derive-macros that can optionally be used to eliminate some of the boilerplate.
 pub mod derive {
     /// Implements [Action](crate::action::Action) for the enum that this attribute sits upon.

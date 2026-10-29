@@ -1,12 +1,14 @@
 mod state {
     use std::sync::Arc;
     use std::sync::atomic::AtomicI32;
+    use testo::executor::{DefaultMarker};
 
     #[derive(Clone, Default)]
     pub struct State {
         pub sum: Arc<AtomicI32>,
         pub counter: u32,
     }
+    impl DefaultMarker for State {}
 }
 
 mod actions {

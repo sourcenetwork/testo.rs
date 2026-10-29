@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use testo::action::execute;
 use testo::derive::Action;
 use testo::prelude::*;
+use testo::executor::DefaultMarker;
 
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -12,6 +13,7 @@ pub struct State {
     sum: Arc<AtomicI32>,
     counter: u32,
 }
+impl DefaultMarker for State {}
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
