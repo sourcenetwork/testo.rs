@@ -160,6 +160,12 @@ fn implement_multiplier_enum(
                     #(Multipliers::#multiplier(m) => m.apply(actions),)*
                 }
             }
+
+            fn should_skip(&self, actions: &[testo::action::ActionInstance<#actions_async, #actions>]) -> testo::multiplier::SkipReason {
+                match self {
+                    #(Multipliers::#multiplier(m) => m.should_skip(actions),)*
+                }
+            }
         }
     }
 }
