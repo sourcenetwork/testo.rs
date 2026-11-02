@@ -55,6 +55,7 @@ where
 }
 
 /// Enum representing whether a test should be skipped or not, and why.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SkipReason {
     /// There was no reason found by the function returning this to skip the current test.
     NoSkip,
